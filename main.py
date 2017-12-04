@@ -17,20 +17,35 @@ class BinomialOptionPricing:
     def determine_number_of_market_days(self):
         today = date.today()
         days_to_expiration = (self.expiration_date - today).days
-        reg_days = floor(days_to_expiration / 7) * 5
+        total_days = floor(days_to_expiration / 7) * 5
         today_weekday = today.weekday()
         expiration_weekday = self.expiration_date.weekday()
+        additional_days = 0
         if expiration_weekday > today_weekday:
             if expiration_weekday > 4:
-                additional_days = max(4 - today_weekday, 0)
+                additional_days += max(4 - today_weekday, 0)
             else:
-                additional_days = max(expiration_weekday - today_weekday, 0)
+                additional_days += max(expiration_weekday - today_weekday, 0)
         elif today_weekday > expiration_weekday:
+            additional_days = 0
+            if today_weekday < 4:
+                additional_days += max(4 - today_weekday, 0)
+            additional_days += min(expiration_weekday + 1, 5)
+        total_days += additional_days
+        total_days += self.number_of_market_holidays()
+        return total_days
+
+    def number_of_market_holidays(self, today):
+        holidays = 0
+        for date in self.market_holidays:
+            if date > today and date <= self.expiration_date:
+                holidays += 1
+        return holidays
 
     def build_tree(self):
         # build out the expected stock price in the form of an array
         today = date.today()
-        days_to_expiration = (self.expiration_date - today).days - 1
+        days_to_expiration = self.determine_number_of_market_days()
         self.tree.append(self.stock_price)
         level = 1
         number_of_nodes = 2
@@ -49,5 +64,6 @@ class BinomialOptionPricing:
     # def calculate_option_value(self):
 
 
-b = BinomialOptionPricing(1, 1, date(2017, 12, 7), None, None, None, 0.4)
-b.build_tree()
+b = BinomialOptionPricing(1, 1, date(2017, 12, 27), None, None, None, 0.4, None)
+# b.build_tree()
+b.determine_number_of_market_days()
