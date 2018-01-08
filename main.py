@@ -3,7 +3,7 @@ from math import exp, sqrt, floor
 
 class BinomialOptionPricing:
     def __init__(self, stock_price, strike, expiration_date, dividend_dates, \
-    qtr_div, risk_free_rate, option_type, volatility, market_holidays, up_probability):
+    qtr_div, risk_free_rate, option_type, volatility, market_holidays):
         self.stock_price = stock_price
         self.strike = strike
         self.expiration_date = expiration_date
@@ -12,12 +12,10 @@ class BinomialOptionPricing:
         self.risk_free_rate = risk_free_rate
         self.option_type = option_type
         self.volatility = volatility
-        self.daily_change = exp(volatility * sqrt(1/360))
-        # print(self.daily_change)
         self.market_holidays = market_holidays
-        self.up_probability = up_probability
         self.tree = []
         self.dates = []
+        self.number_of_intervals = 365 - (52 * 2) - 8
 
     def find_exact_days(self):
         today = date.today()
@@ -27,35 +25,47 @@ class BinomialOptionPricing:
         else:
             while current.weekday() != 0:
                 current += timedelta(1)
-        self.dates = []
 
         while current <= self.expiration_date:
             if current.weekday() < 5 and current not in self.market_holidays:
                 self.dates.append(current)
             current += timedelta(1)
 
+
+        self.up_move = exp(self.volatility * sqrt(1/self.number_of_intervals))
+        self.down_move = 1 / self.up_move
+        self.up_probability = (exp(self.risk_free_rate * (1/len(self.dates))) - self.down_move) / (self.up_move - self.down_move)
+        self.up_move = self.round_to_four_decimals(self.up_move)
+        self.down_move = self.round_to_four_decimals(self.down_move)
+        self.up_probability = self.round_to_four_decimals(self.up_probability)
+
     def build_tree(self):
         # build out the expected stock price in the form of an array
         days_to_expiration = len(self.dates)
         self.tree.append([[self.stock_price, None, self.dates[0]]])
-        level = 1
-        number_of_nodes = 2
+        level = 0
         while level < days_to_expiration:
-            times_up = level
             new_level = []
             day = self.dates[level]
-            while number_of_nodes > 0:
-                new_stock_price = self.stock_price * (self.daily_change ** times_up)
-                new_stock_price = self.round_to_two_decimals(new_stock_price)
-                new_level.append([new_stock_price, None, day])
-                number_of_nodes -= 1
-                times_up -= 2
+            num_nodes = len(self.tree[-1])
+            node_num = 1
+            for node in self.tree[-1]:
+                up_price = node[0] * self.up_move
+                up_price = self.round_to_two_decimals(up_price)
+                new_level.append([up_price, None, day])
+                if node_num == num_nodes:
+                    down_price = node[0] * self.down_move
+                    down_price = self.round_to_two_decimals(down_price)
+                    new_level.append([down_price, None, day])
+                node_num += 1
             level += 1
-            number_of_nodes = level + 1
             self.tree.append(new_level)
 
     def round_to_two_decimals(self,number):
         return float(format(number, '.2f'))
+
+    def round_to_four_decimals(self, number):
+        return float(format(number, '.4f'))
 
     def calculate_call_value(self, stock_price):
         return self.round_to_two_decimals(max(stock_price - self.strike, 0))
@@ -73,60 +83,84 @@ class BinomialOptionPricing:
         for level in range(len(self.tree) - 1, -1, -1):
             if level == len(self.tree) - 1:
                 for i in range(len(self.tree[level])):
-                    self.tree[level][i][1] = calc_fcn(self.tree[level][i][0])
+                    stock_price = self.tree[level][i][0]
+                    if self.option_type == 0 and self.tree[level][i][2] in self.dividend_dates:
+                        stock_price += self.qtr_div
+                    self.tree[level][i][1] = calc_fcn(stock_price)
+
             else:
                 for i in range(len(self.tree[level])):
                     future_binomial_value = (self.up_probability * self.tree[level + 1][i][1]) + \
                     ((1 - self.up_probability) * self.tree[level + 1][i + 1][1])
-                    pv_days = 1
-                    if self.dates[level].weekday() == 4:
-                        pv_days = 3
-                    pv_binomial_value = future_binomial_value / ((1 + self.risk_free_rate)**(pv_days/360))
+                    pv_binomial_value = future_binomial_value * exp(-self.risk_free_rate / self.number_of_intervals)
                     pv_binomial_value = self.round_to_two_decimals(pv_binomial_value)
                     exercise_value = calc_fcn(self.tree[level][i][0])
-                    if self.option_type == 0 and self.dates[level + 1] in self.dividend_dates:
+                    if self.option_type == 0 and self.tree[level][i][2] in self.dividend_dates:
                         exercise_value += self.qtr_div
                     self.tree[level][i][1] = max(pv_binomial_value, exercise_value)
-        # print(self.tree)
         # print(self.tree[0][0][1])
         return self.tree[0][0][1]
 
-def run_model(stock_price, strike, expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, volatility, market_holidays, up_probability):
-    b = BinomialOptionPricing(stock_price, strike, expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, volatility, market_holidays, up_probability)
+def run_model(stock_price, strike, expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, volatility, market_holidays):
+    b = BinomialOptionPricing(stock_price, strike, expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, volatility, market_holidays)
     b.find_exact_days()
     b.build_tree()
     return b.calculate_option_value()
 
-div_dates = [date(2018,1,30), date(2018, 4, 30), date(2018,7,30), date(2018,10,30)]
-# div_dates = [date(2017,12,6)]
-
-# run_model(7.4, 5, date(2018, 2,17), div_dates, 0.05, 0.01, 1, 1, [], 0.5)
-# b = BinomialOptionPricing(38.12, 32.5, date(2017, 12, 12), None, 0.01, 1, 0.5, [], 0.5)
-# b.find_exact_days()
-
 def find_implied_volatiliy(target_option_price, stock_price, strike, \
     expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, \
-    market_holidays, up_probability):
+    market_holidays):
     # use binary search to find volatility given option price
     low_bound = 0.0
     high_bound = 5.0
     middle = (high_bound + low_bound) / 2
 
     res = run_model(stock_price, strike, expiration_date, \
-    dividend_dates, qtr_div, risk_free_rate, option_type, middle, market_holidays, \
-    up_probability)
+    dividend_dates, qtr_div, risk_free_rate, option_type, middle, market_holidays)
 
+    prev_middle = middle
     while res != target_option_price:
         if res < target_option_price:
             low_bound = middle
         else:
             high_bound = middle
+
         middle = (high_bound + low_bound) / 2
+        if middle == prev_middle:
+            break
+        else:
+            prev_middle = middle
         res = run_model(stock_price, strike, expiration_date, \
-        dividend_dates, qtr_div, risk_free_rate, option_type, middle, market_holidays, \
-        up_probability)
+        dividend_dates, qtr_div, risk_free_rate, option_type, middle, market_holidays)
 
     print(middle)
 
-# find_implied_volatiliy(0.95, 17.4, 15, date(2019, 1,17), div_dates, 0.2, 0.01, 1, [], 0.5)
-find_implied_volatiliy(1.2, 38.1, 32.5, date(2018, 4,17), div_dates, 0, 0.01, 1, [], 0.5)
+stock_price = 44.54
+strike = 45
+expiration_date = date(2018,2,2)
+div_dates = []
+dividend = 0.0
+risk_free_rate = 0.018
+option_type = 0
+volatility = 0.2720384035978
+target_option_price = 1.54
+
+market_holidays = [date(2018,1,15), date(2018, 2,19), date(2018,3,30), \
+                   date(2018, 5, 28), date(2018,7,4), date(2018,9,3), \
+                   date(2018, 11,22), date(2018,12,25), date(2019,1,1), \
+                   date(2019,1,21), date(2019,2,18),date(2019,4,19),
+                   date(2019,5,27), date(2019,7,4), date(2019,9,2),
+                   date(2019,11,28), date(2019,12,25)]
+
+
+
+# run_model(stock_price, strike, expiration_date, div_dates, dividend, \
+#           risk_free_rate, option_type, volatility, market_holidays)
+# b = BinomialOptionPricing(100, 100, date(2018, 1,11), div_dates, 1.0, 0.05, 0, 0.3, market_holidays)
+# b.find_exact_days()
+# b.build_tree()
+# b.calculate_option_value()
+
+find_implied_volatiliy(target_option_price, stock_price, strike, \
+    expiration_date, div_dates, dividend, risk_free_rate, option_type, \
+    market_holidays)
