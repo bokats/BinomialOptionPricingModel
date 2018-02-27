@@ -135,15 +135,15 @@ def find_implied_volatiliy(target_option_price, stock_price, strike, \
 
     print(middle)
 
-stock_price = 44.54
-strike = 45
-expiration_date = date(2018,2,2)
+stock_price = 21.85
+strike = 17.5
+expiration_date = date(2018,6,18)
 div_dates = []
 dividend = 0.0
 risk_free_rate = 0.018
-option_type = 0
-volatility = 0.2720384035978
-target_option_price = 1.54
+option_type = 1
+volatility = 0.27203840359
+target_option_price = 0.45
 
 market_holidays = [date(2018,1,15), date(2018, 2,19), date(2018,3,30), \
                    date(2018, 5, 28), date(2018,7,4), date(2018,9,3), \
