@@ -3,7 +3,7 @@ from math import exp, sqrt, floor
 
 class BinomialOptionPricing:
     def __init__(self, stock_price, strike, expiration_date, dividend_dates, \
-    qtr_div, risk_free_rate, option_type, volatility, market_holidays):
+    qtr_div, risk_free_rate, option_type, volatility):
         self.stock_price = stock_price
         self.strike = strike
         self.expiration_date = expiration_date
@@ -12,7 +12,6 @@ class BinomialOptionPricing:
         self.risk_free_rate = risk_free_rate
         self.option_type = option_type
         self.volatility = volatility
-        self.market_holidays = market_holidays
         self.tree = []
         self.dates = []
         self.number_of_intervals = 365 - (52 * 2) - 8
@@ -27,7 +26,7 @@ class BinomialOptionPricing:
                 current += timedelta(1)
 
         while current <= self.expiration_date:
-            if current.weekday() < 5 and current not in self.market_holidays:
+            if current.weekday() < 5:
                 self.dates.append(current)
             current += timedelta(1)
 
@@ -101,22 +100,21 @@ class BinomialOptionPricing:
         # print(self.tree[0][0][1])
         return self.tree[0][0][1]
 
-def run_model(stock_price, strike, expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, volatility, market_holidays):
-    b = BinomialOptionPricing(stock_price, strike, expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, volatility, market_holidays)
+def run_model(stock_price, strike, expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, volatility):
+    b = BinomialOptionPricing(stock_price, strike, expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, volatility)
     b.find_exact_days()
     b.build_tree()
     return b.calculate_option_value()
 
 def find_implied_volatiliy(target_option_price, stock_price, strike, \
-    expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type, \
-    market_holidays):
+    expiration_date, dividend_dates, qtr_div, risk_free_rate, option_type):
     # use binary search to find volatility given option price
     low_bound = 0.0
     high_bound = 5.0
     middle = (high_bound + low_bound) / 2
 
     res = run_model(stock_price, strike, expiration_date, \
-    dividend_dates, qtr_div, risk_free_rate, option_type, middle, market_holidays)
+    dividend_dates, qtr_div, risk_free_rate, option_type, middle)
 
     prev_middle = middle
     while res != target_option_price:
@@ -131,26 +129,21 @@ def find_implied_volatiliy(target_option_price, stock_price, strike, \
         else:
             prev_middle = middle
         res = run_model(stock_price, strike, expiration_date, \
-        dividend_dates, qtr_div, risk_free_rate, option_type, middle, market_holidays)
+        dividend_dates, qtr_div, risk_free_rate, option_type, middle)
 
     print(middle)
 
-stock_price = 21.85
-strike = 17.5
-expiration_date = date(2018,6,18)
+stock_price = 294
+strike = 100
+expiration_date = date(2019,3,15)
 div_dates = []
 dividend = 0.0
-risk_free_rate = 0.018
+risk_free_rate = 0.034
 option_type = 1
-volatility = 0.27203840359
-target_option_price = 0.45
+# volatility = 0.27203840359
+option_price = 4.25
 
-market_holidays = [date(2018,1,15), date(2018, 2,19), date(2018,3,30), \
-                   date(2018, 5, 28), date(2018,7,4), date(2018,9,3), \
-                   date(2018, 11,22), date(2018,12,25), date(2019,1,1), \
-                   date(2019,1,21), date(2019,2,18),date(2019,4,19),
-                   date(2019,5,27), date(2019,7,4), date(2019,9,2),
-                   date(2019,11,28), date(2019,12,25)]
+market_holidays = []
 
 
 
@@ -161,6 +154,5 @@ market_holidays = [date(2018,1,15), date(2018, 2,19), date(2018,3,30), \
 # b.build_tree()
 # b.calculate_option_value()
 
-find_implied_volatiliy(target_option_price, stock_price, strike, \
-    expiration_date, div_dates, dividend, risk_free_rate, option_type, \
-    market_holidays)
+find_implied_volatiliy(option_price, stock_price, strike, \
+    expiration_date, div_dates, dividend, risk_free_rate, option_type)
